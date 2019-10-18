@@ -80,6 +80,28 @@ module Attributes =
                 { new IDisposable with member __.Dispose() = set t o }
         )
 
+    let inline padding< ^a, ^b when ^a : (member set_Padding : ^b -> unit) and ^a : (member get_Padding : unit -> ^b)> : Attribute< ^a, ^b > =
+        let inline set t v = ((^a) : (member set_Padding : ^b -> unit) (t, v))
+        let inline get t = ((^a) : (member get_Padding : unit -> ^b) (t))
+        Attribute< ^a, ^b >(
+            "Padding",
+            fun t v ->
+                let o = get t
+                set t v
+                { new IDisposable with member __.Dispose() = set t o }
+        )
+
+    let inline spacing< ^a, ^b when ^a : (member set_Spacing : ^b -> unit) and ^a : (member get_Spacing: unit -> ^b)> : Attribute< ^a, ^b > =
+        let inline set t v = ((^a) : (member set_Spacing : ^b -> unit) (t, v))
+        let inline get t = ((^a) : (member get_Spacing : unit -> ^b) (t))
+        Attribute< ^a, ^b >(
+            "Spacing",
+            fun t v ->
+                let o = get t
+                set t v
+                { new IDisposable with member __.Dispose() = set t o }
+        )
+
     let inline text< ^a, ^b when ^a : (member set_Text : ^b -> unit) and ^a : (member get_Text : unit -> ^b)> : Attribute< ^a, ^b > =
         let inline set t v = ((^a) : (member set_Text : ^b -> unit) (t, v))
         let inline get t = ((^a) : (member get_Text : unit -> ^b) (t))
@@ -101,7 +123,40 @@ module Attributes =
                 set t v
                 { new IDisposable with member __.Dispose() = set t o }
         )
+        
+    let inline backgroundColor< ^a, ^b when ^a : (member set_BackgroundColor : ^b -> unit) and ^a : (member get_BackgroundColor : unit -> ^b)> : Attribute< ^a, ^b > =
+        let inline set t v = ((^a) : (member set_BackgroundColor : ^b -> unit) (t, v))
+        let inline get t = ((^a) : (member get_BackgroundColor : unit -> ^b) (t))
+        Attribute< ^a, ^b >(
+            "Background",
+            fun t v ->
+                let o = get t
+                set t v
+                { new IDisposable with member __.Dispose() = set t o }
+        )
 
+    let inline fontFamily< ^a, ^b when ^a : (member set_FontFamily : ^b -> unit) and ^a : (member get_FontFamily : unit -> ^b)> : Attribute< ^a, ^b > =
+        let inline set t v = ((^a) : (member set_FontFamily : ^b -> unit) (t, v))
+        let inline get t = ((^a) : (member get_FontFamily : unit -> ^b) (t))
+        Attribute< ^a, ^b >(
+            "FontFamily",
+            fun t v ->
+                let o = get t
+                set t v
+                { new IDisposable with member __.Dispose() = set t o }
+        )
+
+    let inline fontSize< ^a, ^b when ^a : (member set_FontSize : ^b -> unit) and ^a : (member get_FontSize : unit -> ^b)> : Attribute< ^a, ^b > =
+        let inline set t v = ((^a) : (member set_FontSize : ^b -> unit) (t, v))
+        let inline get t = ((^a) : (member get_FontSize : unit -> ^b) (t))
+        Attribute< ^a, ^b >(
+            "FontSize",
+            fun t v ->
+                let o = get t
+                set t v
+                { new IDisposable with member __.Dispose() = set t o }
+        )
+    
     let inline enabled< ^a, ^b when ^a : (member set_IsEnabled : ^b -> unit) and ^a : (member get_IsEnabled : unit -> ^b)> : Attribute< ^a, ^b > =
         let inline set t v = ((^a) : (member set_IsEnabled : ^b -> unit) (t, v))
         let inline get t = ((^a) : (member get_IsEnabled : unit -> ^b) (t))
@@ -506,10 +561,15 @@ module Test =
             ]
 
 
-            stack [] (
+            stack [ padding <-- Thickness(0.0); spacing <-- 0.0; backgroundColor <-- Color.DimGray ] (
                 alist {
                     for i in list do
-                        yield label [ text <-- i ]
+                        label [ 
+                            fontFamily <-- "Consolas"
+                            fontSize <-- 12.0
+                            textColor <-- Color.White
+                            text <-- sprintf "> %s" i 
+                        ]
                 }    
             )
 
