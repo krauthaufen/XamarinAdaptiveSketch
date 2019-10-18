@@ -220,7 +220,7 @@ module Elements =
     let inline checkbox v = Generic.create CheckBox v AList.empty
     let inline switch v = Generic.create Switch v AList.empty
     let inline label v = Generic.create Label v AList.empty
-    let inline stack v c = Generic.create StackLayout v (AList.ofList c)
+    let inline stack v c = Generic.create StackLayout v c
 
 
 module Updaters = 
@@ -290,9 +290,10 @@ module Updaters =
         interface IAttributeUpdater with
             member x.Update(e,t) = x.Update(e,t)
 
-    type NodeUpdater(node : Node, insert : VisualElement -> unit) =
+    type NodeUpdater(node : Node, insert : VisualElement -> IDisposable) =
         inherit AdaptiveObject()
 
+        let mutable witness = Disposable.empty
         let mutable self = None
 
         let reader = node.children.GetReader()
@@ -308,7 +309,7 @@ module Updaters =
 
         let mutable cc : option<System.Collections.Generic.IList<View>> = None
 
-    
+        let mutable subNodes : IndexList<VisualElement> = IndexList.empty
 
 
         let getChildren() =
@@ -359,7 +360,7 @@ module Updaters =
                 match self with
                 | None -> 
                     let e = node.create()
-                    insert e
+                    witness <- insert e
                     self <- Some e
                     e
                 | Some e ->
@@ -395,15 +396,36 @@ module Updaters =
             for (idx, op) in IndexListDelta.toSeq ops do
                 match op with
                 | Set node ->
-                    let (l, s, r) = IndexList.neighbours idx children
-                    match s with
-                    | Some(_,s) -> s.Destroy()
-                    | None -> ()
-
                     let cc = getChildren()
                     let insert (element : VisualElement) = 
-                        // TODO: proper index
-                        cc.Add(unbox element)
+                        let (_, s, r) = IndexList.neighbours idx subNodes
+
+                        match s with
+                        | Some(si, _) ->
+                            match IndexList.tryGetPosition si subNodes with
+                            | Some i -> cc.[i] <- unbox element
+                            | None -> failwith "inconsistent"
+                        | None ->
+                            match r with
+                            | Some (ri, _) ->
+                                match IndexList.tryGetPosition ri children with
+                                | Some i -> cc.Insert(i, unbox element)
+                                | None -> failwith "inconsistent"
+                            | None ->
+                                // no right => last
+                                cc.Add(unbox element)
+
+                        subNodes <- IndexList.set idx element subNodes
+                        { new IDisposable with
+                            member x.Dispose() =   
+                                match IndexList.tryGetPosition idx subNodes with
+                                | Some i -> 
+                                    cc.RemoveAt i
+                                    subNodes <- IndexList.remove idx subNodes
+                                | None -> 
+                                    ()
+                                
+                        }
 
                     let u = NodeUpdater(node, insert)
                     children <- IndexList.set idx u children
@@ -423,7 +445,7 @@ module Updaters =
 
 
         member x.Destroy() =
-            ()
+            witness.Dispose()
 
         member x.Update(token : AdaptiveToken) =
             x.EvaluateIfNeeded token () (fun token ->
@@ -436,6 +458,9 @@ module Test =
     let testUI () =
         let active = cval true
         let clickCount = cval 0
+
+        let list = clist ["booted"]
+
         stack [ ] [
             label [
                 text <== (clickCount |> AVal.map (function 0 -> "zero" | cnt -> sprintf "clicked %d times" cnt))
@@ -455,13 +480,39 @@ module Test =
             button [
                 enabled <== active
                 text <-- "Increment"
-                click <-- fun _e -> transact (fun () -> clickCount.Value <- 1 + clickCount.Value)
+                click <-- fun _e -> 
+                    transact (fun () -> 
+                        clickCount.Value <- 1 + clickCount.Value
+                        list.Add (sprintf "clicked Increment: %d" clickCount.Value) |> ignore
+                    )
             ]
             button [
                 enabled <== active
                 text <-- "Decrement"
-                click <-- fun _e -> transact (fun () -> clickCount.Value <- max 0 (clickCount.Value - 1))
+                click <-- fun _e -> 
+                    transact (fun () -> 
+                        clickCount.Value <- max 0 (clickCount.Value - 1)
+                        list.Add (sprintf "clicked Decrement: %d" clickCount.Value) |> ignore
+                    )
             ]
+            button [
+                enabled <== active
+                text <-- "Reset"
+                click <-- fun _e -> 
+                    transact (fun () -> 
+                        clickCount.Value <- 0
+                        list.Value <- IndexList.ofList ["booted"]
+                    )
+            ]
+
+
+            stack [] (
+                alist {
+                    for i in list do
+                        yield label [ text <-- i ]
+                }    
+            )
+
         ]
 
     type MainWindow() = 
@@ -479,8 +530,9 @@ module Test =
         page.Title <- "CounterApp"
 
 
+
         let test = testUI()
-        let u = Updaters.NodeUpdater(test, fun e -> page.Content <- unbox e)
+        let u = Updaters.NodeUpdater(test, fun e -> page.Content <- unbox e; Disposable.empty)
 
         let sub = 
             u.AddMarkingCallback(fun () -> 
